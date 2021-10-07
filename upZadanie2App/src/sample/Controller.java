@@ -1,18 +1,15 @@
 package sample;
 
+import com.sun.xml.internal.ws.util.StringUtils;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
-
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.xml.soap.Text;
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.util.Random;
-import java.util.concurrent.TimeUnit;
-
 
 public class Controller
 {
@@ -29,9 +26,12 @@ public class Controller
     private TextArea textOutput;
 
     private static String key = "";
+    private static String helper = "";
+    private static String name = "momo.encrypted";
+    private static String shortcutResult = "";
     private static final String ALGORITHM = "AES";
-    private static final String TRANSFORMATION = "AES/CBC/NoPadding";
-    private static final String initVector = "encryptionIntVec";
+    //private static final String TRANSFORMATION = "AES/CBC/NoPadding";
+    private static final String TRANSFORMATION = "AES/CBC/PKCS5Padding";
     static SecureRandom rnd = new SecureRandom();
     private static final IvParameterSpec iv = new IvParameterSpec(rnd.generateSeed(16));
     boolean isFileCreated;
@@ -40,27 +40,8 @@ public class Controller
     {
 
         textOutput.setStyle("-fx-border-color: black;");
+        textOutput.setEditable(false);
         key = getSaltString();
-
-        try
-        {
-            File newTextFile = new File("C:\\Users\\masko\\Desktop\\test\\key2.txt");
-            isFileCreated = newTextFile.createNewFile();
-            System.out.println(isFileCreated);
-            if(isFileCreated)
-            {
-                FileWriter fw = new FileWriter(newTextFile);
-                fw.write(key);
-                fw.close();
-            }
-
-        }
-        catch (IOException e)
-        {
-            //do stuff with exception
-            e.printStackTrace();
-        }
-
 
         encryptBtn.setOnAction(event ->
         {
@@ -68,9 +49,45 @@ public class Controller
             File inputFile = new File(pathOfFile.getText());
             System.out.printf("Kluc: %s\n", key);
 
+            if(shortcutLength(pathOfFile) == 4)
+            {
+                shortcutResult = pathOfFile.getText().substring(pathOfFile.getText().length()-4, pathOfFile.getText().length());
+            }
+            else if(shortcutLength(pathOfFile) == 5)
+            {
+                shortcutResult = pathOfFile.getText().substring(pathOfFile.getText().length()-5, pathOfFile.getText().length());
+            }
+            else if(shortcutLength(pathOfFile) == 6)
+            {
+                shortcutResult = pathOfFile.getText().substring(pathOfFile.getText().length()-6, pathOfFile.getText().length());
+            }
+            else if(shortcutLength(pathOfFile) == 7)
+            {
+                shortcutResult = pathOfFile.getText().substring(pathOfFile.getText().length()-7, pathOfFile.getText().length());
+            }
+
+            System.out.println("Shortcut: "+shortcutResult);
+            try
+            {
+                File newTextFile = new File("key.txt");
+                isFileCreated = newTextFile.createNewFile();
+                System.out.println(isFileCreated);
+                if(isFileCreated)
+                {
+                    FileWriter fw = new FileWriter(newTextFile);
+                    fw.write(key);
+                    fw.close();
+                }
+
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+
             System.out.println("Začiatok sifrovania...");
             long start = System.currentTimeMillis();
-            encrypt(inputFile);
+            encrypt(inputFile, pathOfFile);
 
             System.out.println("Koniec sifrovania...");
             long finish = System.currentTimeMillis();
@@ -91,7 +108,7 @@ public class Controller
 
             long start = System.currentTimeMillis();
             System.out.println("Začiatok desifrovania...");
-            decrypt(inputFile);
+            decrypt(inputFile, pathOfFile);
 
             System.out.println("Koniec desifrovania...");
             long finish = System.currentTimeMillis();
@@ -104,18 +121,36 @@ public class Controller
         });
     }
 
-    public static void encrypt(File inputFile)
+    public static int shortcutLength(TextField pathOfFile)
     {
-        File encryptedFile = new File("dummy.encrypted");
-        encryptToNewFile(inputFile, encryptedFile);
-        //renameToOldFilename(inputFile, encryptedFile);
+        helper = pathOfFile.getText().substring(pathOfFile.getText().length()-4, pathOfFile.getText().length());
+        if(!helper.contains("."))
+        {
+            helper = pathOfFile.getText().substring(pathOfFile.getText().length()-5, pathOfFile.getText().length());
+            if(!helper.contains("."))
+            {
+                helper = pathOfFile.getText().substring(pathOfFile.getText().length()-6, pathOfFile.getText().length());
+                if(!helper.contains("."))
+                {
+                    helper = pathOfFile.getText().substring(pathOfFile.getText().length()-7, pathOfFile.getText().length());
+                }
+            }
+        }
+        return helper.length();
     }
 
-    public static void decrypt(File inputFile)
+    public static void encrypt(File inputFile, TextField pathOfFile)
     {
-        File decryptedFile = new File("dummy_decrypted.txt");
+        name = pathOfFile.getText().substring(0, pathOfFile.getText().indexOf("."));
+        File encryptedFile = new File(name+".encrypted");
+        encryptToNewFile(inputFile, encryptedFile);
+    }
+
+    public static void decrypt(File inputFile, TextField pathOfFile)
+    {
+        name = pathOfFile.getText().substring(0, pathOfFile.getText().indexOf("."));
+        File decryptedFile = new File("original_"+name+shortcutResult);
         decryptToNewFile(inputFile, decryptedFile);
-        //renameToOldFilename(inputFile, decryptedFile);
     }
 
     private static void decryptToNewFile(File input, File output) {
@@ -155,15 +190,8 @@ public class Controller
         }
     }
 
-    private static void renameToOldFilename(File oldFile, File newFile)
+    protected String getSaltString()
     {
-        if (oldFile.exists()) {
-            oldFile.delete();
-        }
-        newFile.renameTo(oldFile);
-    }
-
-    protected String getSaltString() {
         String SALTCHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
         StringBuilder salt = new StringBuilder();
         Random rnd = new Random();
