@@ -1,18 +1,23 @@
 package sample;
 
-import com.sun.xml.internal.ws.util.StringUtils;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import javax.xml.soap.Text;
 import java.io.*;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Random;
 
 public class Controller
 {
+    private static boolean isFileCreated;
     @FXML
     private TextField pathOfFile;
 
@@ -30,11 +35,11 @@ public class Controller
     private static String name = "momo.encrypted";
     private static String shortcutResult = "";
     private static final String ALGORITHM = "AES";
-    //private static final String TRANSFORMATION = "AES/CBC/NoPadding";
-    private static final String TRANSFORMATION = "AES/CBC/PKCS5Padding";
+    private static final String TRANSFORMATION = "AES/CBC/NoPadding";
+    //private static final String TRANSFORMATION = "AES/CBC/PKCS5Padding";
+    //private static final String TRANSFORMATION = "AES/GCM/NoPadding";
     static SecureRandom rnd = new SecureRandom();
     private static final IvParameterSpec iv = new IvParameterSpec(rnd.generateSeed(16));
-    boolean isFileCreated;
     @FXML
     private void initialize()
     {
@@ -47,8 +52,6 @@ public class Controller
         {
             System.out.println(pathOfFile.getText());
             File inputFile = new File(pathOfFile.getText());
-            System.out.printf("Kluc: %s\n", key);
-
             if(shortcutLength(pathOfFile) == 4)
             {
                 shortcutResult = pathOfFile.getText().substring(pathOfFile.getText().length()-4, pathOfFile.getText().length());
@@ -65,38 +68,7 @@ public class Controller
             {
                 shortcutResult = pathOfFile.getText().substring(pathOfFile.getText().length()-7, pathOfFile.getText().length());
             }
-
-            System.out.println("Shortcut: "+shortcutResult);
-            try
-            {
-                File newTextFile = new File("key.txt");
-                isFileCreated = newTextFile.createNewFile();
-                System.out.println(isFileCreated);
-                if(isFileCreated)
-                {
-                    FileWriter fw = new FileWriter(newTextFile);
-                    fw.write(key);
-                    fw.close();
-                }
-
-            }
-            catch (IOException e)
-            {
-                e.printStackTrace();
-            }
-
-            System.out.println("Začiatok sifrovania...");
-            long start = System.currentTimeMillis();
-            encrypt(inputFile, pathOfFile);
-
-            System.out.println("Koniec sifrovania...");
-            long finish = System.currentTimeMillis();
-            long timeElapsed = finish - start;
-
-            String msg = "Čas šifrovania: ";
-            textOutput.setText(msg + timeElapsed + "ms \n");
-
-            System.out.printf("Čas šifrovania: %d ms\n\n", +timeElapsed);
+            encrypt(inputFile, pathOfFile, textOutput);
         });
 
         decryptBtn.setOnAction(event ->
@@ -104,20 +76,7 @@ public class Controller
             textOutput.clear();
             System.out.println(pathOfFile.getText());
             File inputFile = new File(pathOfFile.getText());
-            System.out.printf("Kluc: %s\n", key);
-
-            long start = System.currentTimeMillis();
-            System.out.println("Začiatok desifrovania...");
-            decrypt(inputFile, pathOfFile);
-
-            System.out.println("Koniec desifrovania...");
-            long finish = System.currentTimeMillis();
-            long timeElapsed = finish - start;
-
-            String msg = "Čas dešifrovania: ";
-            textOutput.setText(msg + timeElapsed + "ms \n");
-
-            System.out.printf("Čas desifrovania: %d ms\n", +timeElapsed);
+            decrypt(inputFile, pathOfFile, textOutput);
         });
     }
 
@@ -139,43 +98,91 @@ public class Controller
         return helper.length();
     }
 
-    public static void encrypt(File inputFile, TextField pathOfFile)
+    public static void encrypt(File inputFile, TextField pathOfFile, TextArea txtOutput)
     {
         name = pathOfFile.getText().substring(0, pathOfFile.getText().indexOf("."));
         File encryptedFile = new File(name+".encrypted");
-        encryptToNewFile(inputFile, encryptedFile);
+        encryptToNewFile(inputFile, encryptedFile, txtOutput);
     }
 
-    public static void decrypt(File inputFile, TextField pathOfFile)
+    public static void decrypt(File inputFile, TextField pathOfFile, TextArea txtOutput)
     {
         name = pathOfFile.getText().substring(0, pathOfFile.getText().indexOf("."));
         File decryptedFile = new File("original_"+name+shortcutResult);
-        decryptToNewFile(inputFile, decryptedFile);
+        decryptToNewFile(inputFile, decryptedFile, txtOutput);
     }
 
-    private static void decryptToNewFile(File input, File output) {
+    private static void decryptToNewFile(File input, File output, TextArea txtArea) {
         try (FileInputStream inputStream = new FileInputStream(input); FileOutputStream outputStream = new FileOutputStream(output)) {
             SecretKeySpec secretKey = new SecretKeySpec(key.getBytes(), ALGORITHM);
             Cipher cipher = Cipher.getInstance(TRANSFORMATION);
             cipher.init(Cipher.DECRYPT_MODE, secretKey, iv);
+
+            try
+            {
+                File newTextFile = new File("key.txt");
+                isFileCreated = newTextFile.createNewFile();
+                System.out.println(isFileCreated);
+                if(isFileCreated)
+                {
+                    FileWriter fw = new FileWriter(newTextFile);
+                    fw.write(String.valueOf(secretKey.getEncoded()));
+                    fw.close();
+                }
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+
+            System.out.println("Začiatok desifrovania...");
+            long start = System.currentTimeMillis();
 
             byte[] buff = new byte[16384];
             for (int readBytes = inputStream.read(buff); readBytes > -1; readBytes = inputStream.read(buff)) {
                 outputStream.write(cipher.update(buff, 0, readBytes));
             }
             outputStream.write(cipher.doFinal());
+            long finish = System.currentTimeMillis();
+            long timeElapsed = finish - start;
+            System.out.println("Koniec desifrovania...");
+            System.out.printf("Čas dešifrovania: %d ms\n\n", +timeElapsed);
+            String msg = "Čas dešifrovania: ";
+            txtArea.setText(msg + timeElapsed + " ms \n");
+
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private static void encryptToNewFile(File inputFile, File outputFile) {
+    private static void encryptToNewFile(File inputFile, File outputFile, TextArea txtArea) {
         try (FileInputStream inputStream = new FileInputStream(inputFile); FileOutputStream outputStream = new FileOutputStream(outputFile))
         {
             SecretKeySpec secretKey = new SecretKeySpec(key.getBytes(), ALGORITHM);
+            System.out.println("SecretKey: "+ secretKey.getEncoded());
             Cipher cipher = Cipher.getInstance(TRANSFORMATION);
             cipher.init(Cipher.ENCRYPT_MODE, secretKey, iv);
-            byte[] inputBytes = new byte[8192];
+
+            try
+            {
+                File newTextFile = new File("key.txt");
+                isFileCreated = newTextFile.createNewFile();
+                System.out.println(isFileCreated);
+                if(isFileCreated)
+                {
+                    FileWriter fw = new FileWriter(newTextFile);
+                    fw.write(String.valueOf(secretKey.getEncoded()));
+                    fw.close();
+                }
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+
+            System.out.println("Začiatok sifrovania...");
+            long start = System.currentTimeMillis();
+            byte[] inputBytes = new byte[16384];
             for (int n = inputStream.read(inputBytes); n > 0; n = inputStream.read(inputBytes))
             {
                 byte[] outputBytes = cipher.update(inputBytes, 0, n);
@@ -183,13 +190,29 @@ public class Controller
             }
             byte[] outputBytes = cipher.doFinal();
             outputStream.write(outputBytes);
+            long finish = System.currentTimeMillis();
+            long timeElapsed = finish - start;
+            System.out.println("Koniec sifrovania...");
+            System.out.printf("Čas šifrovania: %d ms\n\n", +timeElapsed);
+            String msg = "Čas šifrovania: ";
+            txtArea.setText(msg + timeElapsed + " ms \n");
         }
-        catch (Exception e)
+        catch (IllegalBlockSizeException | IOException e)
         {
+            e.printStackTrace();
+        } catch (InvalidAlgorithmParameterException e) {
+            e.printStackTrace();
+        } catch (NoSuchPaddingException e) {
+            e.printStackTrace();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (BadPaddingException e) {
+            e.printStackTrace();
+        } catch (InvalidKeyException e) {
             e.printStackTrace();
         }
     }
-
+    
     protected String getSaltString()
     {
         String SALTCHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
