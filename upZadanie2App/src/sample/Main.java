@@ -14,7 +14,7 @@ public class Main extends Application
     {
         Parent root = FXMLLoader.load(getClass().getResource("sample.fxml"));
         primaryStage.setTitle("Encrypt/Decrypt Application");
-        primaryStage.setScene(new Scene(root, 560, 360));
+        primaryStage.setScene(new Scene(root, 675, 400));
         primaryStage.setResizable(false);
         primaryStage.show();
     }
